@@ -1,8 +1,16 @@
 #!/usr/bin/python3
 '''
 python twitter bot that does stuff
+TODO: 
+    [ ] Log when bot is killed
+    [ ] Implement user log in
+    [ ] Make a User class, instead of using functions
+    	    This class will make it easy to have multiple
+	    users preform actions (notabot and milesboswell
+	    like and retweet a tweet)
+    [ ] Send Direct Messages
 '''
-import tweepy, re, logging
+import tweepy, re, logging, threading
 from keys import *
 
 # set up twitter credentials
@@ -10,7 +18,6 @@ auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
 auth.set_access_token(access_token, access_token_secret)
 api = tweepy.API(auth)
 
-# TODO: log when bot is killed
 datefmt = '%d-%b-%y %H:%M:%S'
 logging.basicConfig(filename='bot.log', level=logging.INFO,
 	format='%(asctime)s: %(name)s - %(message)s', datefmt=datefmt)
@@ -44,14 +51,26 @@ def watchuser(screen_name, add=True):
 				watch_file.write('@{}\n'.format(screen_name))
 		watch.append({'screen_name': user.screen_name, 'id': user.id_str})
 
+def update(s):
+	def setInterval(func, sec):
+		t = threading.Timer(sec, func)
+		t.start()
+		# return the Timer object, just in case it needs to be canceled
+		return t
+	return setInterval(lambda: update(s), s)
 # setKeyToken(consumer_secret, 'new secret token')
 def setKeyToken(key, newkey):
-	# change the credential keys in keys.py
+	'''setKeyToken will be used to change credentials in keys.py
+	   when another user is logged in. If user log in is implemented,
+	   other twitter accounts (different than notabot) will be able to 
+	   like, retweet, or do any other activity from their account. consumer_key
+	   and consumer_secret don't have to be changed to switch users; notabot
+	   is still the host of the application.'''
 	with open('keys.py', 'r') as key_file:
 		original = key_file.read()
-	newline = re.sub(key, newkey, original)
+	newcreds = re.sub(key, newkey, original)
 	with open('keys.py', 'w') as key_file:
-		key_file.write(newline)
+		key_file.write(newcreds)
 
 def like_retweet(status_id):
 	# Favorite and Retweet a tweet with id id
@@ -75,7 +94,7 @@ watchall()
 # using streams of tweets
 class StreamListener(tweepy.StreamListener):
 	def on_status(self, status):
-		# make sure the tweet is from a user in watch array
+		# make sure the tweet is from a user in watch array, not mentioning that user
 		for user in watch:
 			user_id, screen_name = user['id'], user['screen_name']
 			if status.user.id_str == user_id:
@@ -96,6 +115,8 @@ class StreamListener(tweepy.StreamListener):
 			return False
 
 def main():
+	# # update periodically from watchusers file
+	# update(5* 60) # update every 5 minutes
 	# initialize twitter stream
 	myStream = tweepy.Stream(auth=api.auth, listener=StreamListener())
 	# filter the stream to user ids in watch[]
